@@ -9,40 +9,13 @@
 #include <qpushbutton.h>
 #include <qfiledialog.h>
 #include <QMessageBox.h>
-
-//namespace std
-//{
-//    template < >
-//    struct greater<QString>
-//    {
-//        auto operator()(const QString& a, const QString& b) const -> bool
-//        {
-//            return a > b;
-//        }
-//    };
-//
-//    template < >
-//    struct less<QString>
-//    {
-//        auto operator()(const QString& a, const QString& b) const -> bool
-//        {
-//            return a < b;
-//        }
-//    };
-//}
+//#include <qexception.h>
 
 class mz_wrapper
 {
 public:
-    mz_wrapper(QString&& path): path_(std::move(path))
+    mz_wrapper(QString&& path): path_(qMove(path))
     {
-        //#ifdef _DEBUG //unwanted
-        //        for (auto c: path_)
-        //        {
-        //            if (c > std::numeric_limits<char>::max( ))
-        //                assert(0);
-        //        }
-        //#endif
     }
 
     ~mz_wrapper( )
@@ -55,15 +28,15 @@ public:
 
     mz_wrapper(mz_wrapper&& other) noexcept
     {
-        *this = std::move(other);
+        *this = qMove(other);
     }
 
     auto operator=(mz_wrapper&& other) noexcept -> mz_wrapper&
     {
         this->close( );
-        path_ = std::move(other.path_);
-        mz_ = std::move(other.mz_);
-        info_cached_ = std::move(other.info_cached_);
+        path_ = qMove(other.path_);
+        mz_ = qMove(other.mz_);
+        info_cached_ = qMove(other.info_cached_);
 
         other.mz_.file = nullptr;
 
@@ -72,8 +45,6 @@ public:
 
     auto open( ) -> void
     {
-        //windwos + (const char*)(текст) == error !!!
-
         const auto file = unzOpen(path_.toUtf8( ).constData( ));
         if (file == nullptr)
         {
@@ -99,19 +70,19 @@ public:
 #if 0
     struct simple_file_info
     {
-        simple_file_info(std::string&& full_path, const unz_file_info& entry_info): path(std::move(full_path)), info(entry_info) { }
+        simple_file_info(std::string&& full_path, const unz_file_info& entry_info): path(qMove(full_path)), info(entry_info) { }
         simple_file_info(const std::string_view& full_path, const unz_file_info& entry_info): path((full_path)), info(entry_info) { }
 
-        std::string path; 
+        std::string path;
         unz_file_info info;
     };
 
     using file_info_storage = std::vector<simple_file_info>;
 #endif
 
-    //std::map тк лень вручную сортировать. сортировка нужна исключительно для красоты
+    //std::map пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     //using file_info_storage_temp = std::map<QString, unz_file_info, std::greater<QString> >;
-    using file_info_storage = std::vector<std::pair<QString, unz_file_info> >;
+    using file_info_storage = QVector<QPair<QString, unz_file_info> >;
 
     auto update_file_info(bool force = false) -> const file_info_storage&
     {
@@ -126,11 +97,15 @@ public:
                 // Get info about current file.
                 unz_file_info zip_file_info;
 
+#if 0
 #if defined(unix) || defined(__unix__) || defined(__unix)
              char filename[NAME_MAX];
 #else
                 char filename[_MAX_FNAME];
 #endif
+#endif
+                char filename[255];
+
                 if (unzGetCurrentFileInfo(mz_.file, &zip_file_info, filename, sizeof(filename), nullptr, 0, nullptr, 0) != UNZ_OK)
                 {
                     assert(0);
@@ -143,8 +118,12 @@ public:
                 {
                     //file detected
 
-                    auto str = QString::fromUtf8(filename_sv.data( ), filename_sv.size( ));
-                    info.emplace_back(std::move(str), zip_file_info);
+                    auto qstr = QString::fromUtf8(filename_sv.data( ), filename_sv.size( ));
+                    file_info_storage::value_type info_data;//QPair have no rvalue constructor
+                    info_data.first=qMove(qstr);
+                    info_data.second=zip_file_info;
+                    info.push_back(qMove(info_data));
+                    //info.push_back(QPair(qMove(str), zip_file_info));
                 }
                 else
                 {
@@ -168,7 +147,7 @@ public:
             for (auto itr = info.begin( ); itr != info.end( ); ++itr)
             {
                 auto& [fst, snd] = *itr;
-                info_cached_.push_back(std::make_pair(const_cast<QString&&>(fst), std::move(snd)));
+                info_cached_.push_back(QPair(const_cast<QString&&>(fst), qMove(snd)));
             }
 
             //info_cached_.assign(std::make_move_iterator(info.begin( )), std::make_move_iterator(info.end( )));
@@ -304,7 +283,7 @@ public:
 
         try
         {
-            zip_.reset(new mz_wrapper(std::move(file_path)));
+            zip_.reset(new mz_wrapper(qMove(file_path)));
             zip_->open( );
             zip_->update_file_info( );
             zip_->close( );
